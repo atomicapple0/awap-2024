@@ -1,4 +1,4 @@
 {
-    "bots": ["bots/random_bot.py", "bots/nothing_bot.py"],
-    "map": "maps/spiral.awap24m"
+    "bots": ["bots/single_sniper.py", "bots/balloon_sender.py"],
+    "map": "maps/three_disjoint_paths.awap24m"
 }
