@@ -90,20 +90,32 @@ def set_turn(turn):
         gs.towers[Team.RED][tower.id] = tower
     
     gs.debris[Team.BLUE] = {}
+    flag = True
     for json_debris in turn['blue_debris']:
         debris = get_debris(Team.BLUE, json_debris)
         gs.debris[Team.BLUE][debris.id] = debris
+        if flag:
+            # print(turn['turn_number'], debris.total_cooldown, debris.health, debris.total_health)
+            flag = False
+    flag = True
     gs.debris[Team.RED] = {}
     for json_debris in turn['red_debris']:
         debris = get_debris(Team.RED, json_debris)
         gs.debris[Team.RED][debris.id] = debris
+        if flag:
+            print(turn['turn_number'], debris.total_cooldown, debris.health, debris.total_health)
+            flag = False
+    flag = True
 
     gs.current_snipes[Team.BLUE] = turn['blue_snipes']
     gs.current_snipes[Team.RED] = turn['red_snipes']
     gs.current_bombs[Team.BLUE] = turn['blue_bombs']
     gs.current_bombs[Team.RED] = turn['red_bombs']
 
-for turn in replay['turns']:
+print(len(replay['turns']))
+for i, turn in enumerate(replay['turns']):
+    if 100 < i < 4800:
+        continue
     set_turn(turn)
     if WEB_MODE:
         pass

@@ -510,10 +510,7 @@ class BotPlayer(Player):
         self.my_towers = {tower.id:tower for tower in rc.get_towers(rc.get_ally_team())}
         for tower in self.my_towers.values():
             if tower.type == TowerType.GUNSHIP:
-                if self.num_towers[TowerType.GUNSHIP] < 4:
-                    rc.auto_snipe(tower.id, SnipePriority.FIRST)
-                else:
-                    rc.auto_snipe(tower.id, SnipePriority.STRONG)
+                rc.auto_snipe(tower.id, SnipePriority.FIRST)
             elif tower.type == TowerType.BOMBER:
                 if rc.can_bomb(tower.id):
                     rc.bomb(tower.id)
