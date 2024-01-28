@@ -1,4 +1,4 @@
 {
-    "bots": ["bots/bez.py", "bots/balloon_sender.py"],
+    "bots": ["bots/bez.py", "bots/jess_bot.py"],
     "map": "maps/biki_bott.awap24m"
 }

@@ -69,11 +69,10 @@ class BotPlayer(Player):
     def init_each(self, rc: RobotController):
         self.debris = rc.get_debris(self.me)
         self.debris_hp = {debris.id: debris.health for debris in self.debris}
-        self.my_towers = rc.get_towers(self.me)
+        self.my_towers = {tower.id:tower for tower in rc.get_towers(self.me) }
         
     def my_auto_snipe(self, rc: RobotController, tower_id: int, priority: SnipePriority):
         
-        print(tower_id, len(self.my_towers), len(rc.get_towers(rc.get_ally_team())))
         tower = self.my_towers[tower_id]
         if tower.type != TowerType.GUNSHIP:
             raise GameException("Auto sniping only works on Gunships")
