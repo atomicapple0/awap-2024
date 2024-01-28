@@ -61,6 +61,12 @@ class BotPlayer(Player):
             for xp, yp in self.pts_within_range(x, y, TowerType.BOMBER.range):
                 if self.binary_path[xp, yp]:
                     self.count_nearby_paths_10[x, y] += self.binary_path[xp, yp]
+        # count_nearby_paths_60
+        self.has_nearby_paths_60 = np.zeros((self.width, self.height), dtype=int)
+        for x, y in self.pts:
+            for xp, yp in self.pts_within_range(x, y, TowerType.GUNSHIP.range):
+                if self.binary_path[xp, yp]:
+                    self.has_nearby_paths_60[x, y] += self.binary_path[xp, yp]
 
         # score_good_bomber_spots
         self.score_good_bomber_spots = self.count_nearby_paths_10 * self.binary_placeable
@@ -79,9 +85,10 @@ class BotPlayer(Player):
         self.score_good_reinforcer_spots = np.zeros((self.width, self.height), dtype=int)
 
         self.max_num_farms = 0
-        self.bomb_pct = .2
+        self.bomb_pct = .33
         self.rushing = False
-
+        self.end_game = False
+        self.solar_limit = 0
 
     # ----------------------------------------------------------------------
     # PHASE
@@ -142,6 +149,11 @@ class BotPlayer(Player):
         farthest = min([self.path_len - debris.progress for debris in self.debris] or [1000])
         return farthest
     
+    def count_health_of_balloons_send_by_enemy(self, rc):
+        self.debris = rc.get_debris(rc.get_ally_team())
+        healths = [debris.health for debris in self.debris if debris.sent_by_opponent]
+        return sum(healths or [0])
+    
     def mode(self, rc):
         if self.tower_idx == 0:
             farthest = self.furthest_bloon(rc)
@@ -164,10 +176,28 @@ class BotPlayer(Player):
             return TowerType.GUNSHIP
         
     def try_sell_farm(self, rc, lax=False):
-        if not lax and self.num_towers[TowerType.SOLAR_FARM] < self.max_num_farms * .7:
-            return
+        if rc.get_health(rc.get_ally_team()) >= 1250:
+            if not lax and self.num_towers[TowerType.SOLAR_FARM] < self.max_num_farms * .7:
+                return
         for tower in rc.get_towers(rc.get_ally_team()):
             if tower.type == TowerType.SOLAR_FARM:
+                rc.sell_tower(tower.id)
+                print(f'[{rc.get_turn()}] Sold {tower.type} at ({tower.x}, {tower.y}). Balance: {rc.get_balance(rc.get_ally_team())}')
+                
+                x, y = tower.x, tower.y
+                self.num_towers[tower.type] -= 1
+                self.binary_placeable[x, y] = True
+                for xp, yp in self.pts_within_range(x, y, TowerType.REINFORCER.range):
+                    if self.binary_path[xp, yp]:
+                        self.score_good_reinforcer_spots[x, y] -= 1
+                self.score_good_bomber_spots[x, y] *= -1
+                self.binary_good_farm_spots[x, y] = True
+                self.binary_good_gunship_spots[x, y] = True
+                break
+
+    def try_sell_reinforcer(self, rc):
+        for tower in rc.get_towers(rc.get_ally_team()):
+            if tower.type == TowerType.REINFORCER:
                 rc.sell_tower(tower.id)
                 print(f'[{rc.get_turn()}] Sold {tower.type} at ({tower.x}, {tower.y}). Balance: {rc.get_balance(rc.get_ally_team())}')
                 
@@ -253,16 +283,36 @@ class BotPlayer(Player):
         if rc.get_turn() == 1:
             self.init_turn_one(rc)
             self.try_send_debris(rc, 1, 51)
+
+
         self.max_num_farms = max(self.num_towers[TowerType.SOLAR_FARM], self.max_num_farms)
+        self.towers_attack_random(rc)
 
         if self.rushing:
             if self.try_send_debris(rc, 1, self.rushing_health):
                 return
             self.rushing = False
 
+        if random.random() < .005 and self.num_attacking_towers_enemy(rc) < 3:
+            self.try_send_debris(rc, 15, 190)
+
+        if rc.get_turn() < 1500 and self.count_health_of_balloons_send_by_enemy(rc) > 51 * 15:
+            self.rushing = True
+            self.rushing_health = 51
+            for i in range(self.num_towers[TowerType.SOLAR_FARM]):
+                self.try_sell_farm(rc, lax=True)
+            self.try_place_bomber(rc)
+            self.try_place_bomber(rc)
+            self.try_place_bomber(rc)
+            self.try_place_bomber(rc)
+            self.try_place_bomber(rc)
+            self.try_place_bomber(rc)
+            return
+        
+
         if rc.get_turn() == 1500 and self.num_towers[TowerType.SOLAR_FARM] >= 9:
             if rc.get_health(rc.get_enemy_team()) < 2500:
-                for i in range(7):
+                for i in range(5):
                     self.try_sell_farm(rc, lax=True)
                 self.rushing = True
                 self.rushing_health = 51
@@ -270,23 +320,24 @@ class BotPlayer(Player):
 
         if rc.get_turn() == 2800 and self.num_towers[TowerType.SOLAR_FARM] > 15:
             if self.furthest_bloon_pct_opps(rc) < .4:
-                for i in range(self.num_towers[TowerType.SOLAR_FARM] * .75):
+                for i in range(self.num_towers[TowerType.SOLAR_FARM] * .5):
                     self.try_sell_farm(rc, lax=True)
                 self.rushing = True
                 self.rushing_health = 151
+                self.solar_limit += 5
                 return
 
-        if rc.get_turn() > 3500 and rc.get_turn() % 1750 == 0:
-            for i in range(self.num_towers[TowerType.SOLAR_FARM] * .8):
-                self.try_sell_farm(rc, lax=True)
-            self.rushing = True
-            self.rushing_health = 301
-            return
+        # if rc.get_turn() == 3500 or rc.get_turn() == 5500:
+        #     for i in range(int(self.num_towers[TowerType.SOLAR_FARM] * .5)):
+        #         self.try_sell_farm(rc, lax=True)
+        #     self.rushing = True
+        #     self.rushing_health = 301
+        #     self.solar_limit += 5
+        #     return
 
         mode = self.mode(rc)
         tower_type = self.mode_to_type(rc, mode)
         if rc.get_turn() % 100 == 0:
-            # print(mode, tower_type, rc.get_balance(rc.get_ally_team()), rc.get_turn(), self.max_num_farms, self.num_towers[TowerType.SOLAR_FARM], self.num_attacking(rc), self.num_towers[TowerType.GUNSHIP], self.furthest_bloon_pct(rc))
             if rc.get_ally_team() == Team.BLUE:
                 print(f'[{rc.get_turn()}] {tower_type} {rc.get_balance(rc.get_ally_team())} {self.furthest_bloon_pct(rc):.2f} {self.furthest_bloon_pct_opps(rc):.2f} {self.num_defense_towers_opponent(rc)} {self.num_towers[TowerType.SOLAR_FARM]} {self.num_towers[TowerType.GUNSHIP]} {self.num_towers[TowerType.BOMBER]}')
         self.play_tower(rc, tower_type)
@@ -311,8 +362,11 @@ class BotPlayer(Player):
                 return
         
         print("couldn't place gunship")
-        x, y = self.find_xy_of_placeable(rc)
-        self.binary_good_gunship_spots[x, y] = True
+        for x, y in self.pts:
+            if self.has_nearby_paths_60[x, y] and rc.is_placeable(rc.get_ally_team(), x, y):
+                self.build_tower(rc, TowerType.GUNSHIP, x, y)
+                return
+                
     
     def find_xy_of_placeable(self, rc: RobotController):
         for x, y in self.pts:
@@ -357,6 +411,10 @@ class BotPlayer(Player):
 
             # if there are 1.5 as many farms as attack type towers, build a gunslinger
             if self.num_towers[TowerType.SOLAR_FARM] > 10 and self.num_towers[TowerType.SOLAR_FARM] > 1.5 * (self.num_towers[TowerType.GUNSHIP] + self.num_towers[TowerType.BOMBER]):
+                tower_type = self.random_attack_tower(rc)
+                self.play_tower(rc, tower_type)
+                return
+            if self.num_towers[TowerType.SOLAR_FARM] > 25 + self.solar_limit:
                 tower_type = self.random_attack_tower(rc)
                 self.play_tower(rc, tower_type)
                 return
@@ -464,6 +522,14 @@ class BotPlayer(Player):
         num_attacking = 0
         for tower in rc.get_towers(rc.get_ally_team()):
             if tower.type == TowerType.GUNSHIP:
+                if tower.current_cooldown < tower.type.cooldown:
+                    num_attacking += 1
+        return num_attacking
+    
+    def num_attacking_towers_enemy(self, rc):
+        num_attacking = 0
+        for tower in rc.get_towers(rc.get_enemy_team()):
+            if tower.type in ATTACK_TOWERS:
                 if tower.current_cooldown < tower.type.cooldown:
                     num_attacking += 1
         return num_attacking
