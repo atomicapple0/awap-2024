@@ -115,7 +115,7 @@ def set_turn(turn):
 import time
 print(len(replay['turns']))
 for i, turn in enumerate(replay['turns']):
-    if 50 < i < 5500:
+    if 50 < i < 1000:
         continue
     set_turn(turn)
     # time.sleep(.1)

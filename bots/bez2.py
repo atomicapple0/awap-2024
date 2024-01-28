@@ -289,9 +289,9 @@ class BotPlayer(Player):
         return num_defense_towers
     
     def is_map_full(self, rc):
-        return len(rc.get_towers(rc.get_ally_team())) >= self.max_towers * .8
+        return sum(self.num_towers.values()) >= self.max_towers * .8
     def is_map_really_full(self, rc):
-        return len(rc.get_towers(rc.get_ally_team())) >= self.max_towers * .98
+        return sum(self.num_towers.values()) >= self.max_towers * .98
 
     
     def play_turn(self, rc: RobotController):
@@ -302,15 +302,15 @@ class BotPlayer(Player):
         if rc.get_turn() == 2500:
             self.solar_limit += 3
         if rc.get_turn() == 3000:
-            self.solar_limit += 3
+            self.solar_limit += 3 + self.max_towers * .005
         if rc.get_turn() == 3500:
-            self.solar_limit += 3
+            self.solar_limit += 3 + self.max_towers * .01
         if rc.get_turn() == 4000:
-            self.solar_limit += 3
+            self.solar_limit += 3 + self.max_towers * .02
         if rc.get_turn() == 4500:
-            self.solar_limit += 4
+            self.solar_limit += 4 + self.max_towers * .04
         if rc.get_turn() == 5000:
-            self.solar_limit += 6
+            self.solar_limit += 6 + self.max_towers * .04
 
         if self.is_map_full(rc) and rc.get_turn() % 1000 == 0:
             for i in range(self.num_towers[TowerType.SOLAR_FARM] // 2):
@@ -353,7 +353,7 @@ class BotPlayer(Player):
 
         if rc.get_turn() == 2800 and self.num_towers[TowerType.SOLAR_FARM] > 15:
             if self.furthest_bloon_pct_opps(rc) < .4:
-                for i in range(self.num_towers[TowerType.SOLAR_FARM] * .5):
+                for i in range(int(self.num_towers[TowerType.SOLAR_FARM] * .5)):
                     self.try_sell_farm(rc, lax=True)
                 self.rushing = True
                 self.rushing_health = 151
@@ -381,7 +381,7 @@ class BotPlayer(Player):
     # PLACE GUNSHIP
     #     random place hugging path that can see at least 5 path tiles
     # ----------------------------------------------------------------------
-    def try_place_gunship(self, rc: RobotController):
+    def try_place_gunship(self, rc: RobotController, recurse=True):
         if rc.get_balance(rc.get_ally_team()) < TowerType.GUNSHIP.cost:
             return
         
@@ -390,11 +390,12 @@ class BotPlayer(Player):
         
 
         
-        for _ in range(1000):
+        for _ in range(300):
             x, y = self.random_pt()
             if self.binary_good_gunship_spots[x, y] and rc.is_placeable(rc.get_ally_team(), x, y):
                 if self.num_towers[TowerType.GUNSHIP]  > 3 * (2 + self.num_towers[TowerType.BOMBER]):
-                    self.try_place_bomber(rc)
+                    if recurse:
+                        self.try_place_bomber(rc)
                     return
                 self.build_tower(rc, TowerType.GUNSHIP, x, y)
                 return
@@ -416,7 +417,7 @@ class BotPlayer(Player):
     # PLACE BOMBER
     #     find path that can see MOST path tiles
     # ----------------------------------------------------------------------
-    def try_place_bomber(self, rc: RobotController):
+    def try_place_bomber(self, rc: RobotController, recurse=False):
         if rc.get_balance(rc.get_ally_team()) < TowerType.BOMBER.cost:
             return
         
@@ -425,7 +426,8 @@ class BotPlayer(Player):
         
             # if 3x as many farms as attack type towers, build a gunslinger
         if self.num_towers[TowerType.BOMBER] > 3 and self.num_towers[TowerType.BOMBER] > 3 * (self.num_towers[TowerType.GUNSHIP]):
-            self.play_tower(rc, TowerType.GUNSHIP)
+            if recurse:
+                self.play_tower(rc, TowerType.GUNSHIP, recurse=False)
             return
         
         best_score = np.max(self.score_good_bomber_spots)
@@ -446,7 +448,7 @@ class BotPlayer(Player):
     # PLACE FARMER
     #     random spot in bottom left of screen
     # ----------------------------------------------------------------------
-    def try_place_farmer(self, rc: RobotController):
+    def try_place_farmer(self, rc: RobotController, recurse=False):
         if rc.get_balance(rc.get_ally_team()) < TowerType.SOLAR_FARM.cost:
             return
         
@@ -456,11 +458,13 @@ class BotPlayer(Player):
         # if 3x as many farms as attack type towers, build a gunslinger
         if self.num_towers[TowerType.SOLAR_FARM] > 7 and self.num_towers[TowerType.SOLAR_FARM] > 3 * (self.num_towers[TowerType.GUNSHIP]):
             tower_type = self.random_attack_tower(rc)
-            self.play_tower(rc, TowerType.GUNSHIP)
+            if recurse:
+                self.play_tower(rc, TowerType.GUNSHIP)
             return
         # if 3x as many farms as attack type towers, build a gunslinger
         if self.num_towers[TowerType.SOLAR_FARM] > 7 and self.num_towers[TowerType.SOLAR_FARM] > 3 * (self.num_towers[TowerType.BOMBER]):
-            self.play_tower(rc, TowerType.BOMBER)
+            if recurse:
+                self.play_tower(rc, TowerType.BOMBER)
             return
         
         x, y = self.good_farm_spots_list[-1]
@@ -471,11 +475,13 @@ class BotPlayer(Player):
             # if there are 1.5 as many farms as attack type towers, build a gunslinger
             if self.num_towers[TowerType.SOLAR_FARM] > 10 and self.num_towers[TowerType.SOLAR_FARM] > 1.5 * (self.num_towers[TowerType.GUNSHIP] + self.num_towers[TowerType.BOMBER]):
                 tower_type = self.random_attack_tower(rc)
-                self.play_tower(rc, tower_type)
+                if recurse:
+                    self.play_tower(rc, tower_type, recurse=False)
                 return
             if self.num_towers[TowerType.SOLAR_FARM] > 25 + self.solar_limit:
                 tower_type = self.random_attack_tower(rc)
-                self.play_tower(rc, tower_type)
+                if recurse:
+                    self.play_tower(rc, tower_type, recurse=False)
                 return
 
             self.build_tower(rc, tower_type, x, y)
@@ -548,7 +554,7 @@ class BotPlayer(Player):
         #     return
 
         rc.build_tower(tower_type, x, y)
-        print(f'[{rc.get_turn()}] Building {tower_type} at ({x}, {y}). Balance: {rc.get_balance(rc.get_ally_team())}')
+        print(f'[{rc.get_turn()} ({len(rc.get_towers(rc.get_ally_team())) / self.max_towers:.2f}) ({self.solar_limit / self.max_towers:.2f}) S({self.num_towers[TowerType.SOLAR_FARM] / self.max_towers:.2f}) G({self.num_towers[TowerType.GUNSHIP] / self.max_towers:.2f}) B({self.num_towers[TowerType.BOMBER] / self.max_towers:.2f}) R({self.num_towers[TowerType.REINFORCER] / self.max_towers:.2f})] Building {tower_type} at ({x}, {y}). Balance: {rc.get_balance(rc.get_ally_team())}')
         self.num_towers[tower_type] += 1
         if tower_type == TowerType.SOLAR_FARM:
             for xp, yp in self.pts_within_range(x, y, TowerType.REINFORCER.range):
