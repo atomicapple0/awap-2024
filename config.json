@@ -1,4 +1,4 @@
 {
     "bots": ["bots/bez2.py", "bots/bez2.py"],
-    "map": "maps/line.awap24m"
+    "map": "maps/simple_map1.awap24m"
 }

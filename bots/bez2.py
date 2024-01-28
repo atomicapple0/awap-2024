@@ -80,6 +80,7 @@ class BotPlayer(Player):
 
         self.max_num_farms = 0
         self.bomb_pct = .2
+        self.rushing = False
 
 
     # ----------------------------------------------------------------------
@@ -237,6 +238,8 @@ class BotPlayer(Player):
         if rc.can_send_debris(cd, health):
             rc.send_debris(cd, health)
             print(f'[{rc.get_turn()}] Sent debris with cd {cd} and health {health}')
+            return True
+        return False
     
     def num_defense_towers_opponent(self, rc):
         num_defense_towers = 0
@@ -244,6 +247,7 @@ class BotPlayer(Player):
             if tower.type in ATTACK_TOWERS:
                 num_defense_towers += 1
         return num_defense_towers
+
     
     def play_turn(self, rc: RobotController):
         if rc.get_turn() == 1:
@@ -251,25 +255,33 @@ class BotPlayer(Player):
             self.try_send_debris(rc, 1, 51)
         self.max_num_farms = max(self.num_towers[TowerType.SOLAR_FARM], self.max_num_farms)
 
+        if self.rushing:
+            if self.try_send_debris(rc, 1, self.rushing_health):
+                return
+            self.rushing = False
+
         if rc.get_turn() == 1500 and self.num_towers[TowerType.SOLAR_FARM] >= 9:
             if rc.get_health(rc.get_enemy_team()) < 2500:
-                for i in range(6):
+                for i in range(7):
                     self.try_sell_farm(rc, lax=True)
-                while rc.can_send_debris(3, 151):
-                    self.try_send_debris(rc, 3, 151)
+                self.rushing = True
+                self.rushing_health = 51
+                return
 
         if rc.get_turn() == 2800 and self.num_towers[TowerType.SOLAR_FARM] > 15:
             if self.furthest_bloon_pct_opps(rc) < .4:
                 for i in range(self.num_towers[TowerType.SOLAR_FARM] * .75):
                     self.try_sell_farm(rc, lax=True)
-                while rc.can_send_debris(2, 301):
-                    self.try_send_debris(rc, 2, 301)
+                self.rushing = True
+                self.rushing_health = 151
+                return
 
         if rc.get_turn() > 3500 and rc.get_turn() % 1750 == 0:
             for i in range(self.num_towers[TowerType.SOLAR_FARM] * .8):
                 self.try_sell_farm(rc, lax=True)
-            while rc.can_send_debris(2, 601):
-                self.try_send_debris(2, 601)
+            self.rushing = True
+            self.rushing_health = 301
+            return
 
         mode = self.mode(rc)
         tower_type = self.mode_to_type(rc, mode)
@@ -419,6 +431,10 @@ class BotPlayer(Player):
             for xp, yp in self.pts_within_range(x, y, TowerType.REINFORCER.range):
                 if self.binary_placeable[xp, yp]:
                     self.score_good_reinforcer_spots[xp, yp] += 1
+        if tower_type == TowerType.GUNSHIP or tower_type == TowerType.BOMBER:
+            for xp, yp in self.pts_within_range(x, y, TowerType.REINFORCER.range):
+                if self.binary_placeable[xp, yp]:
+                    self.score_good_reinforcer_spots[xp, yp] += .8
         self.binary_placeable[x, y] = False
         self.score_good_reinforcer_spots[x, y] *= -1
         self.score_good_bomber_spots[x, y] *= -1
