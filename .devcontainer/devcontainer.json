@@ -1,0 +1,19 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/universal:linux",
+    "forwardPorts": [
+        3000
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/desktop-lite:1": {}, 
+        "python": "latest"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python", 
+                "ms-python.black-formatter"
+            ]
+        }
+    }, 
+    "postCreateCommand": "pip install compress_json pygame"
+}
