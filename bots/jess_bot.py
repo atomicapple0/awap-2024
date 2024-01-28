@@ -27,18 +27,16 @@ class PlayPhase(Enum):
 # INIT -> BOMBERS <-> FARMING
 
 # transition to REINFORCE maybe?
-# usually, we win/lose before we get to FARMING or REINFORCE phase
+# usually, we win/lose before we get to REINFORCE phase
 
 
 class BotPlayer(Player):
     def __init__(self, map: Map):
         self.map = map
-
         # Current gameplay phase
         self.offense_mode = False
         self.debris_before_switch = 10
         self.debris_in_current_mode = 0
-
         # Phases within defense mode
         self.cur_phase = PlayPhase.INIT
         self.towers_built_in_phase = 0
@@ -46,18 +44,15 @@ class BotPlayer(Player):
         # Stuff for maps
         self.path_tiles = set(self.map.path)
         self.distFromNearestPath = {}
-
         # Used for deciding whether to build "support" towers (i.e. SOLAR_FARM, REINFORCER)
         #                                 or "attacking" towers (i.e. GUNSHIP, BOMBER).
         # Any tile with distance from path >= DISTANCE_THRESHOLD ===> build support tower
         #               distance from path <  DISTANCE_THRESHOLD ===> build attacking tower
         self.DISTANCE_THRESHOLD = 2
-
         # Sparsity factors
         # At most GUNSHIP_SPARSITY_FACTOR towers in the radius of a gunship
         self.GUNSHIP_SPARSITY_RADIUS = 60
         self.GUNSHIP_SPARSITY_FACTOR = 5
-
         # In the BOMBER phase, this is the rate at which to put a gunship per bomber.
         # This number is >= 1
         self.GUNSHIPS_PER_BOMBER = 1
@@ -65,8 +60,7 @@ class BotPlayer(Player):
         # In the REINFORCER phase,
         # Minimum amount of towers that must be within reinforcer radius
         # in order for it to be built at that position
-        self.REINFORCER_MIN_THRESHOLD = 3
-
+        self.REINFORCER_MIN_THRESHOLD = 1
         # Count of number of towers built
         self.numTowers = {
             TowerType.GUNSHIP: 0,
@@ -83,7 +77,6 @@ class BotPlayer(Player):
             TowerType.SOLAR_FARM: 20,
             TowerType.REINFORCER: 20,
         }
-
         # Prices of each tower (couldn't find place in API for it)
         self.towerCost = {
             TowerType.GUNSHIP: 1000,
@@ -150,26 +143,30 @@ class BotPlayer(Player):
             if self.towers_built_in_phase >= 10:
                 print("[Tower Building Mode] Transition from INIT to BOMBERS phase")
                 self.cur_phase = PlayPhase.BOMBERS
-                # self.towers_built_in_phase = 0
         elif self.cur_phase == PlayPhase.FARMING:
             # transition to bomber phase when we have enough farms
             if self.towers_built_in_phase >= 1:
-                print("[Tower Building Mode] Transition from FARMING to BOMBERS phase")
-                self.cur_phase = PlayPhase.BOMBERS
-                # self.towers_built_in_phase = 0
+                if self.numTowers[TowerType.SOLAR_FARM] < 5:
+                    print(
+                        "[Tower Building Mode] Transition from FARMING to BOMBERS phase"
+                    )
+                    self.cur_phase = PlayPhase.BOMBERS
+                else:  # if we have >= 5 farms, we're late enough in the game that it's safe to build reinforcers
+                    print(
+                        "[Tower Building Mode] Transition from FARMING to REINFORCE phase"
+                    )
+                    self.cur_phase = PlayPhase.REINFORCE
         elif self.cur_phase == PlayPhase.BOMBERS:
             # transition to farming phase when we have enough towers
             if self.towers_built_in_phase >= 5:
                 print("[Tower Building Mode] Transition from BOMBERS to FARMING phase")
                 self.cur_phase = PlayPhase.FARMING
-                # self.towers_built_in_phase = 0
         elif self.cur_phase == PlayPhase.REINFORCE:
-            if self.towers_built_in_phase >= 1:
+            if self.towers_built_in_phase >= 2:
                 print(
                     "[Tower Building Mode] Transition from REINFORCE to BOMBERS phase"
                 )
                 self.cur_phase = PlayPhase.BOMBERS
-                # self.towers_built_in_phase = 0
 
     def is_position_good(self, rc: RobotController, x, y, tower_type):
         if not rc.is_placeable(rc.get_ally_team(), x, y):
