@@ -9,4 +9,5 @@ class BotPlayer(Player):
         self.map = map
 
     def play_turn(self, rc: RobotController):
-        rc.send_debris(1,20)
+        if rc.can_send_debris(1,20):
+            rc.send_debris(1,20)
