@@ -74,14 +74,16 @@ class RobotController:
         v2 = math.ceil(1/8 * health**1.9 / cooldown)
         v3 = math.ceil(1/4.6 * health**1.8 / cooldown)
         v4 = math.ceil(1/2 * health**1.6 / cooldown)
+
         if power <= 30:
-            return v1
+            res = v1
         elif power <= 80:
-            return max(v1, v2)
+            res = max(v1, v2)
         elif power <= 120:
-            return max(v2, v3)
+            res = max(v2, v3)
         else:
-            return max(v3, v4)
+            res = max(v3, v4)
+        return max(res, 50)
     
     def can_send_debris(self, cooldown: int, health: int) -> bool:
         if self.__gs.sent_debris[self.__team] is not None:
@@ -101,11 +103,15 @@ class RobotController:
         self.__gs.sent_debris[self.__team] = (cooldown, health)
     
     def is_placeable(self, team: Team, x: int, y: int) -> bool:
+        if type(x) != int or type(y) != int:
+            raise GameException("x and y must be integers (and can't be numpy.int64)")
         return self.__gs.is_placeable(team, x, y)
     
     def can_build_tower(self, tower_type: TowerType, x: int, y: int) -> bool:
         if self.__gs.balance[self.__team] < tower_type.cost:
             return False
+        if type(x) != int or type(y) != int:
+            raise GameException("x and y must be integers (and can't be numpy.int64)")
         return self.is_placeable(self.__team, x, y)
     
     def build_tower(self, tower_type: TowerType, x: int, y: int):
