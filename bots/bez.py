@@ -35,7 +35,8 @@ class BotPlayer(Player):
 
     def init_at_1(self, rc: RobotController):
         self.me = rc.get_ally_team()
-        self.next_attack_tower_type = ATTACK_TOWERS[random.randint(0, 1)]
+        self.counter = 0
+        self.update_attack_tower()
 
         # precompute all point within 'near' of path
         near = 5
@@ -69,11 +70,10 @@ class BotPlayer(Player):
     def init_each(self, rc: RobotController):
         self.debris = rc.get_debris(self.me)
         self.debris_hp = {debris.id: debris.health for debris in self.debris}
-        self.my_towers = rc.get_towers(self.me)
+        self.my_towers = {tower.id:tower for tower in rc.get_towers(self.me) }
         
     def my_auto_snipe(self, rc: RobotController, tower_id: int, priority: SnipePriority):
         
-        print(tower_id, len(self.my_towers), len(rc.get_towers(rc.get_ally_team())))
         tower = self.my_towers[tower_id]
         if tower.type != TowerType.GUNSHIP:
             raise GameException("Auto sniping only works on Gunships")
@@ -198,40 +198,57 @@ class BotPlayer(Player):
         assert(best_pp is not None)
         return best_type, best_x, best_y, best_pp
     
+    def update_attack_tower(self):
+        rand = random.random()
+        if rand < .4:
+            self.next_attack_tower_type = TowerType.GUNSHIP
+        else:
+            self.next_attack_tower_type = TowerType.BOMBER
+
+    
     def sum_bloon_pp(self, rc: RobotController):
         bloons_pp = 0
 
         for bloon in rc.get_debris(self.me):
-            path_idx = self.path_pts_to_idx[(bloon.x, bloon.y)]
-            path_left = self.path_len - path_idx
+            path_left = self.path_len - bloon.progress
             turns_left = path_left * bloon.total_cooldown
             pp = bloon.health / turns_left
             bloons_pp += pp
 
-        return bloons_pp
+        return bloons_pp / 1.5
 
 
     def play_turn(self, rc: RobotController):
         if rc.get_turn() == 1:
             self.init_at_1(rc)
+            print('init at one')
         self.init_each(rc)
         
         bloons_pp = self.sum_bloon_pp(rc)
         
-        # print(f'{bloons_pp} {self.total_pp}')
+        if rc.get_turn() % 10 == 0:
+            print(f'{rc.get_turn()}: {bloons_pp} {self.total_pp} {self.next_attack_tower_type}')
 
         
 
-        if 1.2 * bloons_pp > self.total_pp:
+        if bloons_pp > self.total_pp:
             # print(f'we gotta build!')
             # coin flip 0 or 1
             
             btt, bx, by, bpp = self.find_best_tower(rc, self.next_attack_tower_type)
-            if rc.can_build_tower(btt, bx, by):
-                # print(f'we built {btt} at {bx} {by} with {bpp}')
+            if rc.get_balance(self.me) >= btt.cost and rc.can_build_tower(btt, bx, by):
+                print(f'we built {btt} at {bx} {by} with {bpp}')
                 rc.build_tower(btt, bx, by)
                 self.total_pp += bpp / self.path_len
-                self.next_attack_tower_type = ATTACK_TOWERS[random.randint(0, 1)]
+                self.update_attack_tower()
+
+        
+        if bloons_pp < 2 * self.total_pp:
+            if rc.get_balance(self.me) > TowerType.SOLAR_FARM.cost:
+                for (x, y) in self.pts_within_5_of_any_path:
+                    if rc.can_build_tower(TowerType.SOLAR_FARM, x, y):
+                        rc.build_tower(TowerType.SOLAR_FARM, x, y)
+                        break
 
     
 
