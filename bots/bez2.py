@@ -7,6 +7,7 @@ from src.map import *
 from scipy import ndimage
 import numpy as np
 
+import time
 ATTACK_TOWERS = [TowerType.GUNSHIP, TowerType.BOMBER]
 
 class Mode(Enum):
@@ -19,6 +20,7 @@ class BotPlayer(Player):
     def __init__(self, map: Map):
         self.map = map
         self.tower_idx = 0
+        self.skip = 0
 
     def dilate_by(self, binary_map, radius):
         return ndimage.binary_dilation(binary_map, iterations=radius)
@@ -266,9 +268,11 @@ class BotPlayer(Player):
         elif tower_type == TowerType.BOMBER:
             self.try_place_bomber(rc)
         elif tower_type == TowerType.SOLAR_FARM:
-            lol = np.max(self.score_good_reinforcer_spots)
-            if lol >= 8:
-                self.try_place_reinforcer(rc)
+            if rc.get_turn() % 50 == 0:
+                lol = np.max(self.score_good_reinforcer_spots)
+                if lol >= 8:
+                    self.try_place_reinforcer(rc)
+                    return
             else:
                 self.try_place_farmer(rc)
         else:
@@ -298,7 +302,13 @@ class BotPlayer(Player):
         if rc.get_turn() == 1:
             self.init_turn_one(rc)
             self.try_send_debris(rc, 1, 51)
+
+        self.towers_attack_random(rc)
+
+
         
+        a = time.time()
+
         if rc.get_turn() == 2500:
             self.solar_limit += 3
         if rc.get_turn() == 3000:
@@ -312,6 +322,9 @@ class BotPlayer(Player):
         if rc.get_turn() == 5000:
             self.solar_limit += 6 + self.max_towers * .04
 
+
+        b = time.time()
+
         if self.is_map_full(rc) and rc.get_turn() % 1000 == 0:
             for i in range(self.num_towers[TowerType.SOLAR_FARM] // 2):
                 self.try_sell_farm(rc, lax=True)
@@ -319,7 +332,6 @@ class BotPlayer(Player):
             self.solar_limit = -5
 
         self.max_num_farms = max(self.num_towers[TowerType.SOLAR_FARM], self.max_num_farms)
-        self.towers_attack_random(rc)
 
         if self.rushing:
             if self.try_send_debris(rc, 1, self.rushing_health):
@@ -367,15 +379,18 @@ class BotPlayer(Player):
         #     self.rushing_health = 301
         #     self.solar_limit += 5
         #     return
+            
+    def play_turn(self, rc: RobotController):
+        if self.skip:
+            self.skip -= 1
+            return
+        start = time.time()
 
-        mode = self.mode(rc)
-        tower_type = self.mode_to_type(rc, mode)
-        if rc.get_turn() % 100 == 0:
-            if rc.get_ally_team() == Team.BLUE:
-                print(f'[{rc.get_turn()}] {tower_type} {rc.get_balance(rc.get_ally_team())} {self.furthest_bloon_pct(rc):.2f} {self.furthest_bloon_pct_opps(rc):.2f} {self.num_defense_towers_opponent(rc)} {self.num_towers[TowerType.SOLAR_FARM]} {self.num_towers[TowerType.GUNSHIP]} {self.num_towers[TowerType.BOMBER]}')
-        self.play_tower(rc, tower_type)
+        ... body
 
-        self.towers_attack_random(rc)
+        end = time.time()
+        if start - end >= .01:
+            self.skip = int((start - end)/ .01 + 10)
     
     # ----------------------------------------------------------------------
     # PLACE GUNSHIP
@@ -492,7 +507,7 @@ class BotPlayer(Player):
 
         
         print(f"couldn't place farmer (full {self.is_map_full(rc)})")
-        if rc.get_turn() > 4500:
+        if rc.get_turn() > 4500 and rc.get_turn() % 50 == 0:
             self.try_sell_farm(rc)
             self.try_place_gunship(rc)
             return
