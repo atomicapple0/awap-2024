@@ -305,7 +305,9 @@ class BotPlayer(Player):
 
         self.towers_attack_random(rc)
 
-
+        if self.skip:
+            self.skip -= 1
+            return
         
         a = time.time()
 
@@ -380,17 +382,21 @@ class BotPlayer(Player):
         #     self.solar_limit += 5
         #     return
             
-    def play_turn(self, rc: RobotController):
-        if self.skip:
-            self.skip -= 1
-            return
-        start = time.time()
+        c = time.time()
 
-        ... body
-
-        end = time.time()
-        if start - end >= .01:
-            self.skip = int((start - end)/ .01 + 10)
+        mode = self.mode(rc)
+        tower_type = self.mode_to_type(rc, mode)
+        if rc.get_turn() % 100 == 0:
+            if rc.get_ally_team() == Team.BLUE:
+                print(f'[{rc.get_turn()}] {tower_type} {rc.get_balance(rc.get_ally_team())} {self.furthest_bloon_pct(rc):.2f} {self.furthest_bloon_pct_opps(rc):.2f} {self.num_defense_towers_opponent(rc)} {self.num_towers[TowerType.SOLAR_FARM]} {self.num_towers[TowerType.GUNSHIP]} {self.num_towers[TowerType.BOMBER]}')
+        d = time.time()
+        self.play_tower(rc, tower_type)
+        e = time.time()
+        self.towers_attack_random(rc)
+        f = time.time()
+        print(f"Time: b{b-a:.2f} c{c-b:.2f} d{d-c:.2f} e{e-d:.2f} f{f-e:.2f}")
+        if f - a >= .01:
+            self.skip = int(( f - a ) / .01 + 10)
     
     # ----------------------------------------------------------------------
     # PLACE GUNSHIP
